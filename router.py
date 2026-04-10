@@ -106,6 +106,10 @@ def _build_evidence_items(
         except (TypeError, ValueError):
             dist_f = None
 
+        meta = meta or {}
+        content_type = meta.get("content_type")
+        extraction_method = meta.get("extraction_method")
+
         evidence.append(
             {
                 "chunk_id": cid,
@@ -116,6 +120,8 @@ def _build_evidence_items(
                 "confidence_score": confidence,
                 "vector_distance": dist_f,
                 "retrieval_rank": rank,
+                "content_type": content_type,
+                "extraction_method": extraction_method,
             }
         )
         contexts.append(doc)
@@ -292,8 +298,18 @@ def _append_evidence_footer(evidence: List[Dict[str, Any]]) -> str:
         pg_s = str(pg) if pg is not None else "unknown"
         conf = ev.get("confidence_score")
         cid = ev.get("chunk_id") or f"E{i}"
+        ct = ev.get("content_type")
+        em = ev.get("extraction_method")
+        tag = ""
+        if ct or em:
+            parts = []
+            if ct:
+                parts.append(f"content_type: {ct}")
+            if em:
+                parts.append(f"extraction_method: {em}")
+            tag = " | " + ", ".join(parts)
         lines.append(
-            f"- **{cid}** | **{src}** | page {pg_s} | confidence **{conf}** (vector distance: {ev.get('vector_distance')})"
+            f"- **{cid}** | **{src}** | page {pg_s}{tag} | confidence **{conf}** (vector distance: {ev.get('vector_distance')})"
         )
     return "\n".join(lines)
 

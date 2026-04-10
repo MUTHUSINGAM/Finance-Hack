@@ -205,6 +205,14 @@ const MainChat = forwardRef(({ onSourceClick, selectedFiles }, ref) => {
                              <span className="text-zinc-500">
                                p.{ev.page != null ? ev.page : '—'}
                              </span>
+                             {(ev.content_type || ev.extraction_method) && (
+                               <span className="text-violet-400/90" title="Chunk metadata from vector DB">
+                                 {[
+                                   ev.content_type != null && `content_type: ${ev.content_type}`,
+                                   ev.extraction_method != null && `extraction_method: ${ev.extraction_method}`,
+                                 ].filter(Boolean).join(', ')}
+                               </span>
+                             )}
                              <span className="text-amber-500/90">
                                score {(ev.confidence_score * 100).toFixed(1)}%
                              </span>
