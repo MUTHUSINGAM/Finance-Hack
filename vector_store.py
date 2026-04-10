@@ -46,18 +46,23 @@ def add_documents(ids: list[str], documents: list[str], metadatas: list[dict]) -
         metadatas=metadatas
     )
 
-def query_documents(query_texts: list[str], n_results: int = 5) -> dict:
+def query_documents(query_texts: list[str], n_results: int = 5, where: dict = None) -> dict:
     """
     Retrieve the top-K semantically similar document chunks.
     
     Args:
         query_texts (list[str]): The input queries to search against.
         n_results (int): The maximum number of relevant contexts to return.
+        where (dict): Optional constraints matching exactly to chroma's native syntaxes.
         
     Returns:
         dict: A structured dictionary response containing matching text and metadata.
     """
-    return collection.query(
-        query_texts=query_texts,
-        n_results=n_results
-    )
+    params = {
+        "query_texts": query_texts,
+        "n_results": n_results
+    }
+    if where:
+        params["where"] = where
+        
+    return collection.query(**params)

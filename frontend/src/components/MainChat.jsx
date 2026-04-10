@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, forwardRef, useImperativeHandle } from 'react';
 import axios from 'axios';
 import { Send, Cpu, Zap, Archive } from 'lucide-react';
 import DemoCards from './DemoCards';
@@ -9,11 +9,18 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-export default function MainChat({ onSourceClick }) {
+const MainChat = forwardRef(({ onSourceClick, selectedFiles }, ref) => {
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [statusText, setStatusText] = useState('');
+
+  // Allow App.jsx to manually push generic System updates into the RAG stream UI
+  useImperativeHandle(ref, () => ({
+    addSystemMessage: (msgText) => {
+      setMessages(prev => [...prev, { role: 'assistant', content: msgText, isSystem: true }]);
+    }
+  }));
 
   const preProcessText = (text) => {
     if (!text) return '';
@@ -32,7 +39,11 @@ export default function MainChat({ onSourceClick }) {
     setStatusText('Routing via Open-Native Logic...');
 
     try {
-      const res = await axios.post('http://localhost:8000/api/ask', { query: q });
+      const res = await axios.post('http://localhost:8000/api/ask', { 
+        query: q,
+        // Enforce active exact bounding constraint arrays into generic payloads
+        selected_files: selectedFiles && selectedFiles.length > 0 ? selectedFiles : null 
+      });
       
       const isComplex = res.data.model.includes('gpt-4o') && !res.data.model.includes('mini');
       
@@ -66,12 +77,14 @@ export default function MainChat({ onSourceClick }) {
                  <div className={`p-4 rounded-xl max-w-[85%] text-[15px] leading-relaxed ${
                    msg.role === 'user' 
                      ? 'bg-zinc-800 text-white border border-zinc-700/50' 
+                     : msg.isSystem 
+                     ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-mono shadow-[0_4px_12px_rgba(0,0,0,0.2)]'
                      : 'bg-[#18181b]/90 border border-zinc-800 shadow-[0_4px_12px_rgba(0,0,0,0.2)] text-zinc-300'
                  }`}>
                    {msg.role === 'user' ? (
                      <div className="whitespace-pre-wrap">{msg.content}</div>
                    ) : (
-                     <div className="markdown-body space-y-3 prose prose-invert max-w-none text-sm">
+                     <div className={`markdown-body space-y-3 prose max-w-none ${msg.isSystem ? 'prose-emerald' : 'prose-invert'} text-sm`}>
                        <ReactMarkdown
                          remarkPlugins={[remarkMath]}
                          rehypePlugins={[rehypeKatex]}
@@ -93,7 +106,7 @@ export default function MainChat({ onSourceClick }) {
                            ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-2 space-y-1" {...props} />,
                            ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mb-2 space-y-1" {...props} />,
                            li: ({ node, ...props }) => <li className="" {...props} />,
-                           strong: ({ node, ...props }) => <strong className="text-emerald-400 font-semibold" {...props} />,
+                           strong: ({ node, ...props }) => <strong className={`${msg.isSystem ? 'text-emerald-400' : 'text-emerald-400'} font-semibold`} {...props} />,
                            code: ({ node, inline, className, children, ...props }) => {
                              const match = /language-([\w-]+)/.exec(className || '');
                              if (!inline && match && match[1] === 'chart-data') {
@@ -146,7 +159,7 @@ export default function MainChat({ onSourceClick }) {
                    )}
                  </div>
                  
-                 {msg.role === 'assistant' && msg.model && (
+                 {msg.role === 'assistant' && msg.model && !msg.isSystem && (
                    <div className="flex items-center gap-1.5 px-2 mt-1 text-[10px] uppercase font-mono tracking-wider text-zinc-500">
                      {msg.isComplex ? <Cpu size={12} className="text-blue-500" /> : <Zap size={12} className="text-emerald-500" />}
                      Processed by {msg.model}
@@ -188,4 +201,6 @@ export default function MainChat({ onSourceClick }) {
       </div>
     </div>
   );
-}
+});
+
+export default MainChat;

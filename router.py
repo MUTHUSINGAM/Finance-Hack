@@ -9,19 +9,27 @@ from dotenv import load_dotenv
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def ask_question(user_query: str) -> Dict[str, Any]:
+def ask_question(user_query: str, selected_files: list[str] = None) -> Dict[str, Any]:
     """
     Routes a user query through the RAG pipeline using a Try/Escalate mechanic.
     Always standardizes to a fast mini-model unless it inherently warrants escalation.
     
     Args:
         user_query (str): The natural language query from the user.
+        selected_files (list[str]): Optional list of filenames to strictly restrict context processing internally.
         
     Returns:
         Dict[str, Any]: A payload containing the resolved 'answer' or 'error', alongside 'model' metadata.
     """
     # 1. Retrieve RAG contexts
-    results = query_documents([user_query], n_results=3)
+    where_clause = None
+    if selected_files:
+        if len(selected_files) == 1:
+            where_clause = {"source": selected_files[0]}
+        else:
+            where_clause = {"source": {"$in": selected_files}}
+            
+    results = query_documents([user_query], n_results=3, where=where_clause)
     contexts = []
     if results and results.get("documents") and results["documents"][0]:
         contexts = results["documents"][0]
