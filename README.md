@@ -1,78 +1,157 @@
-# Financial Intelligence Portal - Agentic RAG for SEC Filings 🚀
+# Financial Intelligence Portal
 
-An ultra-efficient, budget-restricted **Retrieval-Augmented Generation (RAG)** platform designed to analyze deep financial SEC filings in real-time. Built specifically for the CIT Hackathon 2026 under a strict **$8 API constraint**.
+A production-style Retrieval-Augmented Generation (RAG) app for analyzing financial PDFs (10-K/10-Q style documents) with scoped retrieval, evidence tracing, confidence signals, and chart-ready outputs.
 
-![Bloomberg-Style UI](https://via.placeholder.com/1200x600?text=Financial+Intelligence+Terminal) 
+## Overview
 
-## 🧠 System Architecture
+This project provides:
 
-The core architecture routes dense financial matrices into dynamic LLM contexts dynamically. 
+- PDF ingestion and chunk-level vector indexing
+- Fast semantic retrieval over local ChromaDB
+- Query-time scoping to selected files only
+- Evidence payloads with source, page, and confidence score
+- LLM answer generation with budget-aware model routing
+- Graph rendering from `chart-data` JSON in chat responses
+
+## Architecture
 
 ```mermaid
 graph TD
-    A[Raw SEC PDFs] -->|Multi-core Ingestion| B(ProcessPoolExecutor)
-    B -->|all-MiniLM-L6-v2| C[(ChromaDB Vector Store)]
-    C -->|Try/Escalate Retrieval| D{FastAPI Router}
-    
-    D -->|Budget Check < $7.50| E[gpt-4o-mini]
-    D -->|'ESCALATE' Token| F[gpt-4o]
-    
-    E -->|JSON chart-data| G[React UI]
-    F -->|JSON chart-data| G
-    
-    H[Frontend Upload] -->|POST /api/upload| B
-    G -->|Dynamic Recharts| I[Interactive Graphs]
+    A[PDF files in /pdfs] --> B[pdf_extract.py]
+    B --> C[Chunking + metadata source/page]
+    C --> D[vector_store.py]
+    D --> E[(ChromaDB at /chroma_db)]
+
+    U[User Query + selected_files] --> R[router.py]
+    R --> Q[Semantic retrieval from Chroma]
+    Q --> X[Evidence build: source/page/confidence]
+    X --> L[LLM answer generation]
+    L --> API[/api/ask]
+    API --> F[React frontend]
+    F --> G[Chart rendering from chart-data]
+    F --> H[Evidence drawer]
 ```
 
-## ⭐️ Key Features Showcase
+## End-to-End Pipeline
 
-### 1. Try/Escalate Router
-Rather than burning through API credits blindly, our routing engine physically enforces models to assess their own confidence. `gpt-4o-mini` handles primary RAG contexts. If it explicitly detects deep multi-document reasoning beyond its abilities, it natively outputs an `ESCALATE` token, instantly tripping an upstream handoff to `gpt-4o`.
+### 1) Ingestion and Vectorization
 
-### 2. Hard Circuit Breaker ($8 Limit)
-To prevent API billing overruns, `budget_manager.py` enforces a strict mathematical lock. Every single prompt token and completion token is tracked locally. If the cumulative pipeline cost breaches **$7.50**, the system physically severs `gpt-4o` routes and throttles all traffic backward exclusively to `gpt-4o-mini`, effectively ensuring we never break the $8 quota constraint.
+- PDFs are read page-by-page in `pdf_extract.py` using PyMuPDF.
+- Text is split into overlapping chunks.
+- Each chunk stores metadata:
+  - `source` (filename)
+  - `page` (1-based page number, when available)
+  - `chunk_index`
+- Chunks are embedded with `all-MiniLM-L6-v2` and stored in Chroma collection `financial_docs`.
+- Vector store is persisted in local folder `chroma_db`.
 
-### 3. Dynamic Document Scoping
-Users aren't locked into querying the entire database. Check the boxes in the React Sidebar, and the frontend transmits active `$in` metadata restrictions into the ChromaDB search algorithm. The model only receives data from documents you explicitly requested.
+### 2) Retrieval for a Query
 
-### 4. Auto-Graphing Integration
-The Agentic Router injects an absolute prompt override forcing numerical comparisons into ```chart-data``` syntax. The React frontend actively intercepts these markdown blocks and converts them mid-stream into beautiful, fully interactive Recharts `<LineChart>` overlays mimicking terminal dynamics.
+- Frontend sends `/api/ask` with:
+  - `query`
+  - optional `selected_files`
+- Router retrieves nearest chunks from Chroma:
+  - If multiple files are selected, retrieval is balanced per source.
+  - Scope filtering is enforced by metadata (`source`).
+- Retrieved rows are converted into evidence objects:
+  - `source`, `page`, `excerpt`, `vector_distance`, `retrieval_rank`, `confidence_score`.
 
----
+### 3) Answer Generation
 
-## 💻 Local Setup Instructions
+- Retrieved context is labeled as `[E1]`, `[E2]`, ...
+- Prompt enforces grounded answers from retrieved context only.
+- The system uses budget-aware routing:
+  - primary model: `gpt-4o-mini`
+  - optional escalation: `gpt-4o` when needed and budget allows
 
-Be sure to follow these exact steps to launch the intelligence nodes locally.
+### 4) Evidence and Confidence
 
-### Step 1: Prepare the Target Data
-1. Compile your target SEC filings and `.pdf` documents and save them.
-2. In the root directory, create a `.env` file containing your key:
-```txt
-OPENAI_API_KEY=sk-proj-YOUR_EXACT_API_KEY_HERE
+- Confidence is a heuristic blend of retrieval rank and vector distance similarity.
+- Backend appends a `### Retrieval evidence` section from backend truth (not model guess).
+- UI also shows the same evidence list in the expandable “Evidence & sources” panel.
+
+### 5) Graph Explanation
+
+- If the answer contains a ` ```chart-data``` ` block, frontend renders a Recharts graph.
+- If model omits chart data, backend can append a fallback chart dataset so visualization still appears.
+
+## Features
+
+- Scoped Q&A to selected PDFs
+- Balanced multi-document retrieval for comparison queries
+- Page-aware citation metadata
+- Confidence and evidence transparency
+- Upload endpoint with safe replacement of existing vectors per file
+- Budget tracking and escalation control
+
+## API Summary
+
+- `GET /` - health check
+- `GET /api/budget` - budget usage and circuit state
+- `GET /api/documents` - available PDF filenames
+- `POST /api/upload` - upload and vectorize PDFs
+- `POST /api/ask` - ask a question with optional scoped files
+
+Example ask payload:
+
+```json
+{
+  "query": "Compare cloud revenue trends",
+  "selected_files": ["MSFT_2023_10K.pdf", "GOOGL_2023_10K.pdf"]
+}
 ```
 
-### Step 2: The Logic Engine (Backend)
-Open a terminal in the root directory.
+## Local Setup
+
+### 1) Backend
+
+From project root:
+
 ```bash
-# Install the required heavy machine-learning vectors and FastAPI endpoints
 pip install -r requirements.txt
+```
 
-# Launch Application
+Create `.env`:
+
+```txt
+OPENAI_API_KEY=your_openai_key
+```
+
+Run API:
+
+```bash
 python3 main.py
 ```
-> [!NOTE]
-> *On first boot, the backend server automatically initiates parallel multiprocessing to scrape and embed the data into ChromaDB. MPS (Apple Silicon) or CUDA acceleration is automatically allocated if present!*
 
-### Step 3: The Canvas (Frontend)
-Open a completely **separate** terminal window and navigate to the UI build directory:
+Default backend URL: `http://localhost:8000` (or set `PORT=8001` etc.).
+
+### 2) Frontend
+
+In another terminal:
+
 ```bash
 cd frontend
-
-# Force install Recharts, Vite, and Markdown components
-npm install --force
-
-# Boot application
+npm install
 npm run dev
 ```
 
-Browse to `http://localhost:5173` locally to boot up the Intelligence layout. Live uploading and scope filtering are available natively.
+Frontend URL: `http://localhost:5173`
+
+If backend is on a non-default port, set `frontend/.env`:
+
+```txt
+VITE_API_URL=http://localhost:8001
+```
+
+Then restart `npm run dev`.
+
+## Data and Storage
+
+- Input PDFs: `pdfs/`
+- Vector DB: `chroma_db/`
+- Metadata used for scope: `source` filename
+
+## Notes
+
+- If older indexed data lacks page metadata, page may show as `unknown`; re-upload/re-index PDFs to refresh metadata.
+- Confidence score is a retrieval heuristic for ranking transparency, not a calibrated probability.

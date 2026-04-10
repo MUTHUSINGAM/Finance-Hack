@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Settings, BarChart2, CheckSquare, UploadCloud, Search } from 'lucide-react';
+import { API_BASE } from '../config';
 
 export default function Sidebar({ selectedFiles, onScopeChange }) {
   const [budget, setBudget] = useState({ spent: 0, limit: 7.50, circuit_breaker_active: false });
@@ -8,12 +9,17 @@ export default function Sidebar({ selectedFiles, onScopeChange }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [localSelection, setLocalSelection] = useState(selectedFiles || []);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+
+  useEffect(() => {
+    setLocalSelection(selectedFiles || []);
+  }, [selectedFiles]);
 
   useEffect(() => {
     // Poll Budget Constraints
     const fetchBudget = async () => {
       try {
-        const res = await axios.get('http://localhost:8000/api/budget');
+        const res = await axios.get(`${API_BASE}/api/budget`);
         setBudget(res.data);
       } catch (err) {}
     };
@@ -22,32 +28,42 @@ export default function Sidebar({ selectedFiles, onScopeChange }) {
     return () => clearInterval(intv);
   }, []);
 
-  useEffect(() => {
-    // Initial Doc Fetch
-    fetchDocs();
+  const fetchDocs = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/api/documents`);
+      setAllDocs(res.data.documents || []);
+    } catch (err) {
+      console.error("Failed to load documents", err);
+    }
   }, []);
-  
-  const fetchDocs = async () => {
-      try {
-        const res = await axios.get('http://localhost:8000/api/documents');
-        setAllDocs(res.data.documents || []);
-      } catch (err) {
-        console.error("Failed to load documents", err);
-      }
-  }
+
+  useEffect(() => {
+    fetchDocs();
+    // First request may run before the API is up; poll like budget until the list appears
+    const intv = setInterval(fetchDocs, 5000);
+    return () => clearInterval(intv);
+  }, [fetchDocs]);
 
   const handleUpload = async (e) => {
     if (!e.target.files?.length) return;
     setIsUploading(true);
+    setUploadError('');
     const formData = new FormData();
     for (const file of e.target.files) {
       formData.append('files', file);
     }
     try {
-      await axios.post('http://localhost:8000/api/upload', formData);
-      await fetchDocs(); // refresh list actively post-ingest
-    } catch(err) {
-      console.error("Upload explicitly failed:", err);
+      const res = await axios.post(`${API_BASE}/api/upload`, formData);
+      if (Array.isArray(res.data?.documents)) {
+        setAllDocs(res.data.documents);
+      } else {
+        await fetchDocs();
+      }
+    } catch (err) {
+      console.error('Upload failed:', err);
+      setUploadError(
+        err.response?.data?.detail || err.message || 'Upload failed — check API is running and VITE_API_URL matches the backend port.'
+      );
     } finally {
       setIsUploading(false);
       e.target.value = null; // Clear physical target reference
@@ -129,6 +145,9 @@ export default function Sidebar({ selectedFiles, onScopeChange }) {
             <UploadCloud size={18} className="mx-auto text-zinc-500 group-hover:text-emerald-500 transition-colors" />
             <span className="text-xs text-zinc-400 block mt-1 font-mono group-hover:text-zinc-300">Fast-Upload PDFs</span>
             <input type="file" multiple accept=".pdf" onChange={handleUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
+            {uploadError && (
+              <p className="text-[10px] text-red-400 mt-2 px-1 font-mono relative z-10 pointer-events-none">{uploadError}</p>
+            )}
         </div>
       </div>
 
