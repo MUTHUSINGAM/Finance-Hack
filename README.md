@@ -15,7 +15,7 @@ This project provides:
 
 ## Architecture
 
-```mermaid
+
 graph TD
     A[PDF files in /pdfs] --> B[pdf_extract.py]
     B --> C[Chunking + metadata source/page]
@@ -30,7 +30,7 @@ graph TD
     API --> F[React frontend]
     F --> G[Chart rendering from chart-data]
     F --> H[Evidence drawer]
-```
+
 
 ## End-to-End Pipeline
 
