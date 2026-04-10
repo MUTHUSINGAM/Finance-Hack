@@ -1,0 +1,19 @@
+# API and Keys
+.env
+.env.local
+
+# Database and Heavy Context
+chroma_db/
+pdfs/
+budget_state.json
+
+# Cache
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+dist/
+
+# OS
+.DS_Store
