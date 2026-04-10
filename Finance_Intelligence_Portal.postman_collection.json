@@ -1,0 +1,224 @@
+{
+  "info": {
+    "name": "Finance Intelligence Portal - Vector DB Demo",
+    "description": "Complete API collection for demonstrating the vector database and RAG system to judges",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Vector Database Inspection",
+      "item": [
+        {
+          "name": "Get Vector DB Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/vectordb/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "vectordb", "stats"]
+            },
+            "description": "Shows comprehensive statistics about the vector database including total chunks, unique documents, content type distribution, and extraction method distribution."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Sample Chunks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/vectordb/sample?limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "vectordb", "sample"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Number of sample chunks (max 100)"
+                }
+              ]
+            },
+            "description": "Retrieves actual sample chunks with full metadata, text content, and embedding information."
+          },
+          "response": []
+        },
+        {
+          "name": "Vector Similarity Search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/vectordb/search?query=revenue growth&limit=5",
+              "host": ["{{base_url}}"],
+              "path": ["api", "vectordb", "search"],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "revenue growth",
+                  "description": "Search query"
+                },
+                {
+                  "key": "limit",
+                  "value": "5",
+                  "description": "Number of results (max 50)"
+                }
+              ]
+            },
+            "description": "Performs direct vector similarity search showing raw retrieval results with distances and metadata."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Document Chunks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/vectordb/document/3M_2023Q2_10Q.pdf?limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "vectordb", "document", "3M_2023Q2_10Q.pdf"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Max chunks to return"
+                }
+              ]
+            },
+            "description": "Shows how a single PDF is chunked and stored in the vector database."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "RAG System",
+      "item": [
+        {
+          "name": "Ask Question (RAG Pipeline)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"What was 3M's revenue growth in 2023?\",\n  \"selected_files\": [\"3M_2023Q2_10Q.pdf\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/ask",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ask"]
+            },
+            "description": "Full RAG pipeline with retrieval, evidence tracking, and LLM answer generation. Shows content_type and extraction_method in evidence."
+          },
+          "response": []
+        },
+        {
+          "name": "Ask Multi-Document Question",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Compare revenue trends across companies\",\n  \"selected_files\": [\"3M_2023Q2_10Q.pdf\", \"ACTIVISIONBLIZZARD_2015_10K.pdf\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/ask",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ask"]
+            },
+            "description": "Multi-document comparison query demonstrating cross-document retrieval and evidence tracking."
+          },
+          "response": []
+        },
+        {
+          "name": "Ask About Tables",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Show me revenue breakdown by segment\",\n  \"selected_files\": null\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/ask",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ask"]
+            },
+            "description": "Query that should retrieve table content, demonstrating content_type: table in evidence."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "System Info",
+      "item": [
+        {
+          "name": "Get Available Documents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/documents",
+              "host": ["{{base_url}}"],
+              "path": ["api", "documents"]
+            },
+            "description": "Lists all PDF documents available in the system."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Budget Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/budget",
+              "host": ["{{base_url}}"],
+              "path": ["api", "budget"]
+            },
+            "description": "Shows API cost tracking and circuit breaker status."
+          },
+          "response": []
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": ["{{base_url}}"],
+              "path": [""]
+            },
+            "description": "Basic health check endpoint."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    }
+  ]
+}

@@ -125,6 +125,185 @@ def ask(request: QueryRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=result["error"])
     return result
 
+@app.get("/api/vectordb/stats")
+def get_vectordb_stats() -> Dict[str, Any]:
+    """
+    Get statistics about the vector database for demonstration to judges.
+    Shows total chunks, unique sources, and metadata distribution.
+    """
+    from vector_store import collection
+    
+    try:
+        total_count = collection.count()
+        
+        # Get a sample of all data to analyze
+        sample_size = min(total_count, 1000)
+        results = collection.get(limit=sample_size, include=["metadatas"])
+        
+        metadatas = results.get("metadatas", [])
+        
+        # Analyze sources
+        sources = set()
+        content_types = {}
+        extraction_methods = {}
+        pages_count = 0
+        
+        for meta in metadatas:
+            if meta:
+                src = meta.get("source")
+                if src:
+                    sources.add(src)
+                
+                ct = meta.get("content_type")
+                if ct:
+                    content_types[ct] = content_types.get(ct, 0) + 1
+                
+                em = meta.get("extraction_method")
+                if em:
+                    extraction_methods[em] = extraction_methods.get(em, 0) + 1
+                
+                if meta.get("page") is not None:
+                    pages_count += 1
+        
+        return {
+            "total_chunks": total_count,
+            "unique_documents": len(sources),
+            "documents": sorted(list(sources)),
+            "content_type_distribution": content_types,
+            "extraction_method_distribution": extraction_methods,
+            "chunks_with_page_info": pages_count,
+            "sample_size_analyzed": len(metadatas),
+            "collection_name": "financial_docs",
+            "embedding_model": "all-MiniLM-L6-v2"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error accessing vector DB: {str(e)}")
+
+@app.get("/api/vectordb/sample")
+def get_vectordb_sample(limit: int = 10) -> Dict[str, Any]:
+    """
+    Get sample chunks from the vector database with full metadata.
+    Perfect for showing judges the actual stored data structure.
+    """
+    from vector_store import collection
+    
+    try:
+        if limit > 100:
+            limit = 100
+        
+        results = collection.get(
+            limit=limit,
+            include=["documents", "metadatas", "embeddings"]
+        )
+        
+        chunks = []
+        ids = results.get("ids", [])
+        documents = results.get("documents", [])
+        metadatas = results.get("metadatas", [])
+        embeddings = results.get("embeddings", [])
+        
+        for i in range(len(ids)):
+            chunk = {
+                "chunk_id": ids[i] if i < len(ids) else None,
+                "text": documents[i] if i < len(documents) else None,
+                "text_length": len(documents[i]) if i < len(documents) else 0,
+                "metadata": metadatas[i] if i < len(metadatas) else {},
+                "embedding_dimensions": len(embeddings[i]) if i < len(embeddings) and embeddings[i] else 0,
+                "embedding_sample": embeddings[i][:5] if i < len(embeddings) and embeddings[i] else []
+            }
+            chunks.append(chunk)
+        
+        return {
+            "sample_count": len(chunks),
+            "chunks": chunks
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching samples: {str(e)}")
+
+@app.get("/api/vectordb/search")
+def search_vectordb(query: str, limit: int = 5) -> Dict[str, Any]:
+    """
+    Direct vector similarity search endpoint for demonstration.
+    Shows raw retrieval results with distances and metadata.
+    """
+    from vector_store import query_documents
+    
+    try:
+        if limit > 50:
+            limit = 50
+        
+        results = query_documents([query], n_results=limit, where=None)
+        
+        # Extract and format results
+        docs = results.get("documents", [[]])[0]
+        metadatas = results.get("metadatas", [[]])[0]
+        distances = results.get("distances", [[]])[0]
+        ids = results.get("ids", [[]])[0]
+        
+        search_results = []
+        for i in range(len(docs)):
+            result = {
+                "rank": i + 1,
+                "chunk_id": ids[i] if i < len(ids) else None,
+                "text": docs[i] if i < len(docs) else "",
+                "text_length": len(docs[i]) if i < len(docs) else 0,
+                "metadata": metadatas[i] if i < len(metadatas) else {},
+                "vector_distance": distances[i] if i < len(distances) else None,
+                "similarity_score": round(1.0 / (1.0 + distances[i]), 4) if i < len(distances) and distances[i] is not None else 0
+            }
+            search_results.append(result)
+        
+        return {
+            "query": query,
+            "results_count": len(search_results),
+            "results": search_results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error searching vector DB: {str(e)}")
+
+@app.get("/api/vectordb/document/{filename}")
+def get_document_chunks(filename: str, limit: int = 50) -> Dict[str, Any]:
+    """
+    Get all chunks for a specific document from the vector database.
+    Useful for showing judges how a single PDF is stored and chunked.
+    """
+    from vector_store import collection
+    
+    try:
+        results = collection.get(
+            where={"source": filename},
+            limit=limit,
+            include=["documents", "metadatas"]
+        )
+        
+        chunks = []
+        ids = results.get("ids", [])
+        documents = results.get("documents", [])
+        metadatas = results.get("metadatas", [])
+        
+        for i in range(len(ids)):
+            chunk = {
+                "chunk_id": ids[i] if i < len(ids) else None,
+                "text": documents[i] if i < len(documents) else None,
+                "text_length": len(documents[i]) if i < len(documents) else 0,
+                "metadata": metadatas[i] if i < len(metadatas) else {}
+            }
+            chunks.append(chunk)
+        
+        # Sort by page and chunk_index if available
+        chunks.sort(key=lambda x: (
+            x["metadata"].get("page", 0) or 0,
+            x["metadata"].get("chunk_index", 0) or 0
+        ))
+        
+        return {
+            "filename": filename,
+            "total_chunks": len(chunks),
+            "chunks": chunks
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching document chunks: {str(e)}")
+
 def _exit_if_port_in_use(host: str, port: int) -> None:
     """
     Uvicorn runs FastAPI lifespan (e.g. loading Chroma + embeddings) *before* it binds
