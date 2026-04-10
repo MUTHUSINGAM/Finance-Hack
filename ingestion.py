@@ -20,7 +20,8 @@ def ingest_pdfs(pdf_dir=None, batch_size=256):
     all_chunks = []
 
     # ProcessPool workers only import pdf_extract (PyMuPDF), not torch/Chroma
-    max_workers = min(len(pdf_files), (os.cpu_count() or 2))
+    # Limit to 4 workers for stability with large PDF sets
+    max_workers = min(4, len(pdf_files), (os.cpu_count() or 2))
     if max_workers < 1:
         max_workers = 1
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:

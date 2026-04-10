@@ -2,6 +2,37 @@
 
 ## Before the Judges Arrive
 
+### 0. Fix Metadata (CRITICAL - Do This First!)
+
+**Problem:** If your vector database was created before metadata tracking was added, `content_type` and `extraction_method` will show as `null`.
+
+**Solution:** Re-ingest all PDFs with metadata.
+
+```bash
+cd "e:\Hyperverge 3\CIT-Hackathon-2026"
+python reingest_pdfs.py
+```
+
+**What it does:**
+- Clears existing database
+- Re-processes all PDFs
+- Adds `content_type` (paragraph/table/image_ocr)
+- Adds `extraction_method` (native/paddleocr)
+- Takes 5-10 minutes depending on PDF count
+
+**When prompted, type:** `yes`
+
+**Expected output:**
+```
+✅ SUCCESS! All chunks now have content_type and extraction_method!
+```
+
+**Skip this step ONLY if:**
+- You just uploaded new PDFs recently
+- You verified metadata is already present
+
+---
+
 ### 1. Start Backend Server
 ```bash
 cd "e:\Hyperverge 3\CIT-Hackathon-2026"

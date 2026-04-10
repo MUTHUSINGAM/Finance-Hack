@@ -45,31 +45,49 @@ def _extract_tables_native(page):
     """Return list of (table_text, table_index) from PyMuPDF, if available."""
     out = []
     try:
+        # Add timeout protection and better error handling
         tf = page.find_tables()
-    except Exception:
+        if not tf:
+            return out
+    except KeyboardInterrupt:
+        raise
+    except Exception as e:
+        # Silently skip problematic pages instead of crashing
         return out
+    
     tables = getattr(tf, "tables", None)
     if tables is None:
         try:
             tables = list(tf)
         except Exception:
             return out
+    
     for ti, tab in enumerate(tables):
         try:
             rows = tab.extract()
+        except KeyboardInterrupt:
+            raise
         except Exception:
+            # Skip problematic tables
             continue
         if not rows:
             continue
+        
         lines = []
         for row in rows:
             if row is None:
                 continue
-            cells = [str(c or "").strip() for c in row]
-            lines.append("\t".join(cells))
+            try:
+                cells = [str(c or "").strip() for c in row]
+                lines.append("\t".join(cells))
+            except Exception:
+                # Skip problematic rows
+                continue
+        
         text = "\n".join(lines).strip()
         if text:
             out.append((text, ti))
+    
     return out
 
 
@@ -129,7 +147,15 @@ def process_single_pdf(args):
             page_human = page_index + 1
 
             # 1) Native vector tables (structured cells → searchable text)
-            for tbl_text, tbl_idx in _extract_tables_native(page):
+            try:
+                tables = _extract_tables_native(page)
+            except KeyboardInterrupt:
+                raise
+            except Exception:
+                # If table extraction fails for this page, skip tables but continue
+                tables = []
+            
+            for tbl_text, tbl_idx in tables:
                 global_chunk_idx = _append_chunks(
                     results,
                     file_name,
