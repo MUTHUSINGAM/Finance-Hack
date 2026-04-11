@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+openai
+chromadb
+sentence-transformers
+pymupdf
+python-dotenv
+python-multipart
+numpy>=1.23.0
+# Optional OCR for scanned PDFs / low native text (disable with USE_PADDLE_OCR=0)
+paddleocr>=2.7.0
+paddlepaddle>=2.5.0
